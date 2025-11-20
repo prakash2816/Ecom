@@ -7,7 +7,8 @@
       "/images/product-1.jpg",
       "/images/hero-saree-1.jpg",
       "/images/hero-saree-2.jpg",
-      "/images/hero-saree-3.jpg"
+      "/images/hero-saree-3.jpg",
+      "/uploads/1763620749145_600-TT11JUN27038.webp"
     ],
     "price": 12999,
     "originalPrice": 15999,
@@ -172,11 +173,12 @@
     "name": "banaras",
     "brand": "banarass",
     "images": [
-      "blob:http://localhost:8080/a50ac68d-97f6-4c8d-b33a-9062f010cbc3",
       "/uploads/1763457624019_RA22126_zoom.jpg",
       "/uploads/1763457624021_55555555555-500x500.webp",
       "/uploads/1763457624023_44e1139b18c1059334a0158437ea53dc.jpg",
-      "/uploads/1763457624026_images__2_.jpg"
+      "/uploads/1763457624026_images__2_.jpg",
+      "/uploads/1763623413337_4479S205_1.webp",
+      "/uploads/1763623421849_3579S2516_3.webp"
     ],
     "price": 34322,
     "discount": 12,
@@ -236,5 +238,33 @@
     "reviews": [],
     "category": "Silk Sarees",
     "occasion": ""
+  },
+  {
+    "id": "e939f54a-0953-4450-aaef-cdfa4043615b",
+    "name": "hello",
+    "brand": "hello",
+    "images": [
+      "/uploads/1763628129290_3.webp",
+      "/uploads/1763628129322_44e1139b18c1059334a0158437ea53dc.jpg",
+      "/uploads/1763628129324_4479S205_1.webp",
+      "/uploads/1763628129336_red-saree-golden-embroidery-mannequin-vibrant-intricate-draped-elegantly-traditional-garment-showcases-exquisite-391389281.webp",
+      "/uploads/1763628129340_44e1139b18c1059334a0158437ea53dc.jpg"
+    ],
+    "price": 5999,
+    "originalPrice": 6499,
+    "discount": 20,
+    "colors": [],
+    "fabrics": [],
+    "measurements": {
+      "length": "",
+      "width": ""
+    },
+    "care": "",
+    "stock": 1,
+    "rating": 0,
+    "reviews": [],
+    "category": "Lenin Ikkat",
+    "occasion": "",
+    "createdAt": 1763628129369
   }
 ]

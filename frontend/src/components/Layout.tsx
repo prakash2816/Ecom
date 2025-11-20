@@ -9,9 +9,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { getRole, getToken, clearAuth } from "@/lib/auth";
-import { clearCart } from "@/lib/cart";
-import { clearWishlist } from "@/lib/wishlist";
-import { getCount } from "@/lib/cart";
+import { clearCart, getCount, syncCartFromServer } from "@/lib/cart";
+import { clearWishlist, syncWishlistFromServer } from "@/lib/wishlist";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface LayoutProps {
@@ -30,6 +29,12 @@ const Layout = ({ children }: LayoutProps) => {
     setRole(getRole());
     setCartCount(getCount());
     setAuthed(!!getToken());
+    const token = getToken();
+    if (token) {
+      Promise.all([syncCartFromServer(), syncWishlistFromServer()]).then(() => {
+        setCartCount(getCount());
+      }).catch(() => {});
+    }
   }, [location.pathname]);
   useEffect(() => {
     const handler = () => {

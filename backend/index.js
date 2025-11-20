@@ -27,6 +27,12 @@ const bestsellersPath = path.join(process.cwd(), "data", "bestsellers.json");
 let bestsellerIds = [];
 const subcategoriesPath = path.join(process.cwd(), "data", "subcategories.json");
 let subcategories = {};
+const cartsPath = path.join(process.cwd(), "data", "carts.json");
+let carts = {};
+const wishlistsPath = path.join(process.cwd(), "data", "wishlists.json");
+let wishlists = {};
+const categoryTilesPath = path.join(process.cwd(), "data", "category_tiles.json");
+let categoryTiles = {};
 
 function loadData() {
   try {
@@ -82,6 +88,30 @@ function loadData() {
     };
     try { fs.mkdirSync(path.dirname(subcategoriesPath), { recursive: true }); } catch {}
     try { fs.writeFileSync(subcategoriesPath, JSON.stringify(subcategories, null, 2)); } catch {}
+  }
+  try {
+    const raw = fs.readFileSync(cartsPath, "utf-8");
+    carts = JSON.parse(raw);
+  } catch (e) {
+    carts = {};
+    try { fs.mkdirSync(path.dirname(cartsPath), { recursive: true }); } catch {}
+    try { fs.writeFileSync(cartsPath, JSON.stringify(carts, null, 2)); } catch {}
+  }
+  try {
+    const raw = fs.readFileSync(wishlistsPath, "utf-8");
+    wishlists = JSON.parse(raw);
+  } catch (e) {
+    wishlists = {};
+    try { fs.mkdirSync(path.dirname(wishlistsPath), { recursive: true }); } catch {}
+    try { fs.writeFileSync(wishlistsPath, JSON.stringify(wishlists, null, 2)); } catch {}
+  }
+  try {
+    const raw = fs.readFileSync(categoryTilesPath, "utf-8");
+    categoryTiles = JSON.parse(raw);
+  } catch (e) {
+    categoryTiles = {};
+    try { fs.mkdirSync(path.dirname(categoryTilesPath), { recursive: true }); } catch {}
+    try { fs.writeFileSync(categoryTilesPath, JSON.stringify(categoryTiles, null, 2)); } catch {}
   }
 }
 
@@ -233,10 +263,23 @@ app.get("/api/products", async (req, res) => {
   try {
     if (db) {
       const items = await db.collection("products").find({}).sort({ createdAt: -1, _id: -1 }).toArray();
-      res.json(items);
+      const sanitized = items.map((p) => ({
+        ...p,
+        images: Array.isArray(p.images)
+          ? p.images.filter((u) => typeof u === "string" && u && !u.startsWith("blob:"))
+          : [],
+      }));
+      res.json(sanitized);
       return;
     }
-    const sorted = [...products].sort((a, b) => (Number(b.createdAt || 0) - Number(a.createdAt || 0)));
+    const sorted = [...products]
+      .map((p) => ({
+        ...p,
+        images: Array.isArray(p.images)
+          ? p.images.filter((u) => typeof u === "string" && u && !u.startsWith("blob:"))
+          : [],
+      }))
+      .sort((a, b) => (Number(b.createdAt || 0) - Number(a.createdAt || 0)));
     res.json(sorted);
   } catch (e) {
     res.status(500).json({ error: "Database error" });
@@ -251,7 +294,13 @@ app.get("/api/products/:id", async (req, res) => {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      res.json(item);
+      const sanitized = {
+        ...item,
+        images: Array.isArray(item.images)
+          ? item.images.filter((u) => typeof u === "string" && u && !u.startsWith("blob:"))
+          : [],
+      };
+      res.json(sanitized);
       return;
     }
     const item = products.find(p => p.id === req.params.id);
@@ -259,7 +308,13 @@ app.get("/api/products/:id", async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json(item);
+    const sanitized = {
+      ...item,
+      images: Array.isArray(item.images)
+        ? item.images.filter((u) => typeof u === "string" && u && !u.startsWith("blob:"))
+        : [],
+    };
+    res.json(sanitized);
   } catch (e) {
     res.status(500).json({ error: "Database error" });
   }
@@ -276,11 +331,13 @@ app.post("/api/products", authMiddleware, adminOnly, async (req, res) => {
       images: payload.images || [],
       price: Number(payload.price),
       originalPrice: payload.originalPrice ? Number(payload.originalPrice) : undefined,
+      saveAmount: payload.saveAmount ? Number(payload.saveAmount) : undefined,
       discount: payload.discount ? Number(payload.discount) : undefined,
       colors: payload.colors || [],
       fabrics: payload.fabrics || [],
       measurements: payload.measurements || { length: "", width: "" },
       care: payload.care || "",
+      colorLinks: Array.isArray(payload.colorLinks) ? payload.colorLinks : [],
       stock: payload.stock ? Number(payload.stock) : 0,
       rating: payload.rating ? Number(payload.rating) : 0,
       reviews: [],
@@ -350,7 +407,7 @@ app.post("/api/checkout", (req, res) => {
   res.json({ success: true });
 });
 
-const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+const port = process.env.PORT ? Number(process.env.PORT) : 3001;
 initDb().finally(() => {
   app.listen(port, () => {
     // no-op
@@ -389,6 +446,21 @@ function saveBestsellersToFile() {
 function saveSubcategoriesToFile() {
   try {
     fs.writeFileSync(subcategoriesPath, JSON.stringify(subcategories, null, 2));
+  } catch {}
+}
+function saveCartsToFile() {
+  try {
+    fs.writeFileSync(cartsPath, JSON.stringify(carts, null, 2));
+  } catch {}
+}
+function saveWishlistsToFile() {
+  try {
+    fs.writeFileSync(wishlistsPath, JSON.stringify(wishlists, null, 2));
+  } catch {}
+}
+function saveCategoryTilesToFile() {
+  try {
+    fs.writeFileSync(categoryTilesPath, JSON.stringify(categoryTiles, null, 2));
   } catch {}
 }
 // Categories API
@@ -652,6 +724,222 @@ app.delete("/api/subcategories", authMiddleware, adminOnly, async (req, res) => 
     const list = subcategories[category] || [];
     subcategories[category] = list.filter((n) => n !== name);
     saveSubcategoriesToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.get("/api/cart", authMiddleware, async (req, res) => {
+  try {
+    if (db) {
+      const items = await db.collection("cart").find({ user: req.user.email }).toArray();
+      const ids = items.map((i) => i.productId);
+      const productsList = await db.collection("products").find({ id: { $in: ids } }).toArray();
+      const map = new Map(productsList.map((p) => [p.id, p]));
+      const result = items.map((i) => ({ product: map.get(i.productId), quantity: i.quantity })).filter((x) => x.product);
+      return res.json(result);
+    }
+    const list = Array.isArray(carts[req.user.email]) ? carts[req.user.email] : [];
+    const map = new Map(products.map((p) => [p.id, p]));
+    const result = list.map((i) => ({ product: map.get(i.productId), quantity: i.quantity })).filter((x) => x.product);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.post("/api/cart", authMiddleware, async (req, res) => {
+  try {
+    const { productId, quantity } = req.body || {};
+    if (!productId) return res.status(400).json({ error: "productId required" });
+    const q = Math.max(1, Number(quantity || 1));
+    if (db) {
+      const product = await db.collection("products").findOne({ id: productId });
+      if (!product) return res.status(404).json({ error: "Product not found" });
+      const newQty = Math.min(q, Number(product.stock || 0) || q);
+      await db.collection("cart").updateOne({ user: req.user.email, productId }, { $set: { user: req.user.email, productId, quantity: newQty } }, { upsert: true });
+      return res.json({ success: true });
+    }
+    const product = products.find((p) => p.id === productId);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    const list = Array.isArray(carts[req.user.email]) ? carts[req.user.email] : [];
+    const idx = list.findIndex((i) => i.productId === productId);
+    const newQty = Math.min(q, Number(product.stock || 0) || q);
+    if (idx >= 0) list[idx].quantity = newQty; else list.push({ productId, quantity: newQty });
+    carts[req.user.email] = list;
+    saveCartsToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.put("/api/cart", authMiddleware, async (req, res) => {
+  try {
+    const { productId, quantity } = req.body || {};
+    if (!productId || typeof quantity !== "number") return res.status(400).json({ error: "productId, quantity required" });
+    const q = Math.max(1, Number(quantity));
+    if (db) {
+      const product = await db.collection("products").findOne({ id: productId });
+      if (!product) return res.status(404).json({ error: "Product not found" });
+      const newQty = Math.min(q, Number(product.stock || 0) || q);
+      const r = await db.collection("cart").updateOne({ user: req.user.email, productId }, { $set: { quantity: newQty } });
+      if (!r.matchedCount) return res.status(404).json({ error: "Not found" });
+      return res.json({ success: true });
+    }
+    const list = Array.isArray(carts[req.user.email]) ? carts[req.user.email] : [];
+    const product = products.find((p) => p.id === productId);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    const idx = list.findIndex((i) => i.productId === productId);
+    if (idx === -1) return res.status(404).json({ error: "Not found" });
+    list[idx].quantity = Math.min(q, Number(product.stock || 0) || q);
+    carts[req.user.email] = list;
+    saveCartsToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.delete("/api/cart", authMiddleware, async (req, res) => {
+  try {
+    const productId = (req.query.productId || "").toString();
+    const all = (req.query.all || "").toString();
+    if (db) {
+      if (all) {
+        await db.collection("cart").deleteMany({ user: req.user.email });
+        return res.json({ success: true });
+      }
+      if (!productId) return res.status(400).json({ error: "productId required" });
+      await db.collection("cart").deleteOne({ user: req.user.email, productId });
+      return res.json({ success: true });
+    }
+    if (all) {
+      carts[req.user.email] = [];
+      saveCartsToFile();
+      return res.json({ success: true });
+    }
+    if (!productId) return res.status(400).json({ error: "productId required" });
+    const list = Array.isArray(carts[req.user.email]) ? carts[req.user.email] : [];
+    carts[req.user.email] = list.filter((i) => i.productId !== productId);
+    saveCartsToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.get("/api/wishlist", authMiddleware, async (req, res) => {
+  try {
+    if (db) {
+      const items = await db.collection("wishlist").find({ user: req.user.email }).toArray();
+      const ids = items.map((i) => i.productId);
+      const productsList = await db.collection("products").find({ id: { $in: ids } }).toArray();
+      return res.json(productsList);
+    }
+    const list = Array.isArray(wishlists[req.user.email]) ? wishlists[req.user.email] : [];
+    const ids = new Set(list.map((i) => i.productId));
+    const result = products.filter((p) => ids.has(p.id));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.post("/api/wishlist", authMiddleware, async (req, res) => {
+  try {
+    const { productId } = req.body || {};
+    if (!productId) return res.status(400).json({ error: "productId required" });
+    if (db) {
+      const exists = await db.collection("wishlist").findOne({ user: req.user.email, productId });
+      if (exists) return res.json({ success: true });
+      await db.collection("wishlist").insertOne({ user: req.user.email, productId });
+      return res.json({ success: true });
+    }
+    const list = Array.isArray(wishlists[req.user.email]) ? wishlists[req.user.email] : [];
+    if (!list.find((i) => i.productId === productId)) list.push({ productId });
+    wishlists[req.user.email] = list;
+    saveWishlistsToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.delete("/api/wishlist", authMiddleware, async (req, res) => {
+  try {
+    const productId = (req.query.productId || "").toString();
+    const all = (req.query.all || "").toString();
+    if (db) {
+      if (all) {
+        await db.collection("wishlist").deleteMany({ user: req.user.email });
+        return res.json({ success: true });
+      }
+      if (!productId) return res.status(400).json({ error: "productId required" });
+      await db.collection("wishlist").deleteOne({ user: req.user.email, productId });
+      return res.json({ success: true });
+    }
+    if (all) {
+      wishlists[req.user.email] = [];
+      saveWishlistsToFile();
+      return res.json({ success: true });
+    }
+    if (!productId) return res.status(400).json({ error: "productId required" });
+    const list = Array.isArray(wishlists[req.user.email]) ? wishlists[req.user.email] : [];
+    wishlists[req.user.email] = list.filter((i) => i.productId !== productId);
+    saveWishlistsToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+// Category Tiles API
+app.get("/api/category-tiles", async (req, res) => {
+  try {
+    if (db) {
+      const list = await db.collection("category_tiles").find({}).sort({ position: 1 }).limit(6).toArray();
+      return res.json(list.map((x) => ({ category: x.category, image: x.image, position: Number(x.position ?? 0) })));
+    }
+    const entries = Object.entries(categoryTiles)
+      .map(([pos, obj]) => ({ position: Number(pos), category: obj?.category || "", image: obj?.image || "" }))
+      .sort((a, b) => a.position - b.position)
+      .slice(0, 6);
+    res.json(entries);
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.post("/api/category-tiles", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { category, image, position } = req.body || {};
+    const pos = Number(position);
+    if (!category || !image || Number.isNaN(pos)) return res.status(400).json({ error: "category, image, position required" });
+    if (pos < 0 || pos > 5) return res.status(400).json({ error: "position must be 0-5" });
+    if (db) {
+      await db.collection("category_tiles").updateOne({ position: pos }, { $set: { position: pos, category, image } }, { upsert: true });
+      return res.json({ success: true });
+    }
+    categoryTiles[String(pos)] = { category, image };
+    saveCategoryTilesToFile();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+app.delete("/api/category-tiles", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const category = (req.query.category || "").toString();
+    const position = req.query.position !== undefined ? Number(req.query.position) : undefined;
+    if (!category && (position === undefined || Number.isNaN(position))) return res.status(400).json({ error: "category or position required" });
+    if (db) {
+      if (position !== undefined && !Number.isNaN(position)) {
+        await db.collection("category_tiles").deleteOne({ position });
+      } else {
+        await db.collection("category_tiles").deleteOne({ category });
+      }
+      return res.json({ success: true });
+    }
+    if (position !== undefined && !Number.isNaN(position)) {
+      delete categoryTiles[String(position)];
+    } else {
+      const key = Object.entries(categoryTiles).find(([_, v]) => v?.category === category)?.[0];
+      if (key) delete categoryTiles[key];
+    }
+    saveCategoryTilesToFile();
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "Failed" });

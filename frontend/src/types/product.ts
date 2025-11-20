@@ -13,6 +13,17 @@ export interface Product {
     width: string;
   };
   care: string;
+  details?: string;
+  saveAmount?: number;
+  colorLinks?: { image: string; url: string }[];
+  descriptionSections?: {
+    productSpecifications?: string;
+    shippingInformation?: string;
+    moreInformation?: string;
+    needHelp?: string;
+    faqs?: string;
+    returnPolicy?: string;
+  };
   stock: number;
   rating: number;
   reviews: Review[];

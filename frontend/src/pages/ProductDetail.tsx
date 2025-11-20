@@ -42,13 +42,14 @@ const ProductDetail = () => {
   }
 
   const relatedProducts = (all || []).filter((p) => p.id !== id).slice(0, 4);
+  const images = (product?.images || []).filter((u) => typeof u === "string" && u && !u.startsWith("blob:"));
 
   return (
     <div>
       <div className="container px-4 py-8">
         <div className="grid md:grid-cols-[88px_minmax(0,520px)_1fr] gap-4 mb-16">
           <div className="hidden md:flex md:flex-col gap-1">
-            {product.images.map((image, index) => (
+            {images.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
@@ -68,7 +69,7 @@ const ProductDetail = () => {
           <div>
             <div className="relative mb-4 aspect-square max-w-[520px] bg-card rounded-lg overflow-hidden">
               <img
-                src={(product.images && product.images[selectedImage]) || "/placeholder.svg"}
+                src={(images && images[selectedImage]) || "/placeholder.svg"}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -79,9 +80,9 @@ const ProductDetail = () => {
               )}
             </div>
 
-            {product.images.length > 1 && (
+            {images.length > 1 && (
               <div className="md:hidden flex gap-2 overflow-x-auto pb-2">
-                {product.images.map((image, index) => (
+                {images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
@@ -132,12 +133,12 @@ const ProductDetail = () => {
                 ₹{product.price.toLocaleString()}
               </span>
               {product.originalPrice && (
-                <>
-                  <span className="text-xl text-muted-foreground line-through">
-                    ₹{product.originalPrice.toLocaleString()}
-                  </span>
-                  <Badge variant="secondary">Save ₹{(product.originalPrice - product.price).toLocaleString()}</Badge>
-                </>
+                <span className="text-xl text-muted-foreground line-through">
+                  ₹{product.originalPrice.toLocaleString()}
+                </span>
+              )}
+              {(product.saveAmount ?? (product.originalPrice ? product.originalPrice - product.price : 0)) > 0 && (
+                <Badge variant="secondary">Save ₹{((product.saveAmount ?? (product.originalPrice ? product.originalPrice - product.price : 0))).toLocaleString()}</Badge>
               )}
             </div>
 
@@ -163,21 +164,18 @@ const ProductDetail = () => {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold mb-2">Colors Available</h3>
-                <div className="flex gap-2">
-                  {product.colors.map((color) => (
-                    <Badge key={color} variant="outline">
-                      {color}
-                    </Badge>
-                  ))}
+              {Array.isArray(product.colorLinks) && product.colorLinks.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">Color</h3>
+                  <div className="flex gap-2">
+                    {product.colorLinks.map((c) => (
+                      <a key={c.image + c.url} href={c.url} className="w-12 h-12 rounded-md overflow-hidden border bg-card flex items-center justify-center">
+                        <img src={c.image || "/placeholder.svg"} alt="color" className="w-full h-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-2">Fabric</h3>
-                <Badge variant="secondary">{product.fabrics.join(", ")}</Badge>
-              </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -220,29 +218,7 @@ const ProductDetail = () => {
               Buy Now
             </Button>
 
-            <div className="space-y-6 pt-6">
-              <div>
-                <h3 className="font-semibold mb-2">Product Details</h3>
-                <p className="text-muted-foreground">
-                  Premium saree crafted in {product.fabrics.join(", ")} by {product.brand}. Elegant design suitable for {product.occasion || "all occasions"}.
-                </p>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Size & Fit</h3>
-                <p className="text-muted-foreground">Saree: {product.measurements.length}; Width: {product.measurements.width}</p>
-                <p className="text-muted-foreground">Blouse: Unstitched</p>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Material & Care</h3>
-                <p className="text-muted-foreground">{product.fabrics.join(", ")}</p>
-                <p className="text-muted-foreground">{product.care}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Product Code</h3>
-                <p className="text-muted-foreground">{product.id}</p>
-                <p className="text-xs text-muted-foreground">Note: Product color may slightly vary due to lighting or monitor settings.</p>
-              </div>
-            </div>
+            
           </div>
         </div>
 
@@ -253,16 +229,26 @@ const ProductDetail = () => {
             <TabsTrigger value="care">Care Instructions</TabsTrigger>
             <TabsTrigger value="reviews">Reviews ({product.reviews.length})</TabsTrigger>
           </TabsList>
-          <TabsContent value="details" className="mt-6 space-y-4">
+          <TabsContent value="details" className="mt-6 space-y-6">
+            
+            <div>
+              <h3 className="font-semibold mb-2">Size & Fit</h3>
+              <p className="text-muted-foreground">Saree: {product.measurements.length}; Width: {product.measurements.width}</p>
+              <p className="text-muted-foreground">Blouse: Unstitched</p>
+            </div>
+            
             <div>
               <h3 className="font-semibold mb-2">Measurements</h3>
-              <p className="text-muted-foreground">
-                Length: {product.measurements.length}, Width: {product.measurements.width}
-              </p>
+              <p className="text-muted-foreground">Length: {product.measurements.length}, Width: {product.measurements.width}</p>
             </div>
             <div>
               <h3 className="font-semibold mb-2">Occasion</h3>
               <p className="text-muted-foreground">{product.occasion || "All occasions"}</p>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-2">Product Code</h3>
+              <p className="text-muted-foreground">{product.id}</p>
+              <p className="text-xs text-muted-foreground">Note: Product color may slightly vary due to lighting or monitor settings.</p>
             </div>
           </TabsContent>
           <TabsContent value="care" className="mt-6">

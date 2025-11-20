@@ -3,11 +3,21 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useEffect, useState } from "react";
 import type { CartItem } from "@/types/product";
 import { getCart, updateQuantity, removeFromCart } from "@/lib/cart";
 
 const Cart = () => {
-  const cartItems: CartItem[] = getCart();
+  const [cartItems, setCartItems] = useState<CartItem[]>(getCart());
+  useEffect(() => {
+    const handler = () => setCartItems(getCart());
+    window.addEventListener("cart:update", handler as EventListener);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("cart:update", handler as EventListener);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
   const subtotal: number = cartItems.reduce((sum, it) => sum + it.product.price * it.quantity, 0);
   const shipping: number = 0;
   const total: number = subtotal + shipping;
@@ -43,11 +53,11 @@ const Cart = () => {
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center border rounded-lg">
-                  <Button variant="ghost" size="sm" onClick={() => { updateQuantity(product.id, Math.max(1, quantity - 1)); window.location.reload(); }}>-</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { updateQuantity(product.id, Math.max(1, quantity - 1)); }}>-</Button>
                   <span className="px-4 py-2">{quantity}</span>
-                  <Button variant="ghost" size="sm" onClick={() => { updateQuantity(product.id, quantity + 1); window.location.reload(); }}>+</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { updateQuantity(product.id, quantity + 1); }}>+</Button>
                 </div>
-                <Button variant="destructive" size="icon" onClick={() => { removeFromCart(product.id); window.location.reload(); }}>
+                <Button variant="destructive" size="icon" onClick={() => { removeFromCart(product.id); }}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>

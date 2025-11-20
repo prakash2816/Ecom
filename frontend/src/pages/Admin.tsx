@@ -54,6 +54,7 @@ const Admin = () => {
       setFiles([null, null, null, null, null]);
       setSelectedPreviewIndex(0);
       setFilePickerIndex(null);
+      setColorItems([]);
       const thumbEl = document.getElementById("thumb-file") as HTMLInputElement | null;
       if (thumbEl) thumbEl.value = "";
       const multiEl = document.getElementById("multi-file-picker") as HTMLInputElement | null;
@@ -63,11 +64,12 @@ const Admin = () => {
 
   
 
-  const initialForm = { name: "", brand: "", price: "", images: "", stock: "", category: "", discount: "" };
-  const [form, setForm] = useState<{ name: string; brand: string; price: string; images: string; stock: string; category: string; discount: string }>({
+  const initialForm = { name: "", price: "", originalPrice: "", saveAmount: "", images: "", stock: "", category: "", discount: "" };
+  const [form, setForm] = useState<{ name: string; price: string; originalPrice: string; saveAmount: string; images: string; stock: string; category: string; discount: string }>({
     name: "",
-    brand: "",
     price: "",
+    originalPrice: "",
+    saveAmount: "",
     images: "",
     stock: "",
     category: "",
@@ -78,6 +80,7 @@ const Admin = () => {
   const [filePickerIndex, setFilePickerIndex] = useState<number | null>(null);
   
   const [selectedPreviewIndex, setSelectedPreviewIndex] = useState(0);
+  const [colorItems, setColorItems] = useState<{ file: File | null; imageUrl?: string; url: string }[]>([]);
   const { data: categoriesData = [] } = useQuery<string[]>({
     queryKey: ["categories"],
     queryFn: async () => {
@@ -119,14 +122,7 @@ const Admin = () => {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
   const [newSubName, setNewSubName] = useState("");
-  const [manageCategory, setManageCategory] = useState<string>("Lenin");
-  const { data: manageSubcats = [] } = useQuery<string[]>({
-    queryKey: ["subcategories", manageCategory],
-    queryFn: async () => {
-      const res = await fetch(`/api/subcategories?category=${encodeURIComponent(manageCategory)}`);
-      return res.json();
-    },
-  });
+  const [openItem, setOpenItem] = useState<string | undefined>(undefined);
   const addCategoryMutation = useMutation({
     mutationFn: async (name: string) => {
       const res = await authFetch("/api/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
@@ -223,7 +219,17 @@ const Admin = () => {
       toast(msg);
     },
   });
-  const [selectedLeninSub, setSelectedLeninSub] = useState<string>("");
+  const [selectedSub, setSelectedSub] = useState<string>("");
+  const { data: formSubcats = [] } = useQuery<string[]>({
+    queryKey: ["subcategories", form.category],
+    queryFn: async () => {
+      const cat = form.category;
+      if (!cat) return [];
+      const res = await fetch(`/api/subcategories?category=${encodeURIComponent(cat)}`);
+      return res.json();
+    },
+    enabled: !!form.category,
+  });
   const { data: banners = [] } = useQuery<string[]>({
     queryKey: ["banners"],
     queryFn: async () => {
@@ -332,6 +338,148 @@ const Admin = () => {
     );
   }
 
+  function CategoryTilesManager({ categories }: { categories: string[] }) {
+    const qc = useQueryClient();
+    type CategoryTile = { category: string; image: string; position: number };
+    const { data: tiles = [] } = useQuery<CategoryTile[]>({
+      queryKey: ["category-tiles"],
+      queryFn: async () => {
+        const res = await authFetch("/api/category-tiles");
+        return res.json();
+      },
+    });
+    const [files, setFiles] = useState<(File | null)[]>([null, null, null, null, null, null]);
+    const [values, setValues] = useState<string[]>(["", "", "", "", "", ""]);
+    const addMutation = useMutation({
+      mutationFn: async (pos: number) => {
+        const category = values[pos];
+        const file = files[pos];
+        if (!category || !file) throw new Error("Select category and image");
+        const fd = new FormData();
+        fd.append("files", file);
+        const upRes = await authFetch("/api/upload", { method: "POST", body: fd });
+        if (!upRes.ok) throw new Error("Upload failed");
+        const up = await upRes.json();
+        const image = (up.urls || [])[0];
+        const res = await authFetch("/api/category-tiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category, image, position: pos }),
+        });
+        if (!res.ok) throw new Error("Save failed");
+        return res.json();
+      },
+      onSuccess: (_data, pos) => {
+        qc.setQueryData<CategoryTile[]>(["category-tiles"], (old) => {
+          const arr: CategoryTile[] = Array.isArray(old) ? [...old] : [];
+          const idx = arr.findIndex((t) => Number(t.position) === Number(pos));
+          const category = values[pos];
+          if (idx >= 0) arr[idx] = { position: pos, category, image: "" };
+          else arr.push({ position: pos, category, image: "" });
+          return arr;
+        });
+        qc.invalidateQueries({ queryKey: ["category-tiles"] });
+        qc.refetchQueries({ queryKey: ["category-tiles"] });
+        toast("Category tile updated");
+        setFiles((fs) => { const nf = [...fs]; nf[pos] = null; return nf; });
+      },
+    });
+    const delMutation = useMutation({
+      mutationFn: async (position: number) => {
+        const res = await authFetch(`/api/category-tiles?position=${position}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Delete failed");
+        return res.json();
+      },
+      onSuccess: (_data, position) => {
+        qc.setQueryData<CategoryTile[]>(["category-tiles"], (old) => {
+          const arr: CategoryTile[] = Array.isArray(old) ? [...old] : [];
+          return arr.filter((t) => Number(t.position) !== Number(position));
+        });
+        qc.invalidateQueries({ queryKey: ["category-tiles"] });
+        qc.refetchQueries({ queryKey: ["category-tiles"] });
+      },
+    });
+    const tileByPos: Record<number, { category: string; image: string } | undefined> = {};
+    for (const t of tiles) tileByPos[t.position] = { category: t.category, image: t.image };
+    return (
+      <div className="space-y-6">
+        {[0,1,2,3,4,5].map((pos) => (
+          <div key={pos} className="flex items-center gap-3">
+            <select
+              className="border rounded-md px-2 py-1 bg-background"
+              value={values[pos]}
+              onChange={(e) => setValues((v) => { const nv = [...v]; nv[pos] = e.target.value; return nv; })}
+            >
+              <option value="">Select category</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <input type="file" accept="image/*" onChange={(e) => setFiles((fs) => { const nf = [...fs]; nf[pos] = e.target.files?.[0] || null; return nf; })} />
+            <Button onClick={() => addMutation.mutate(pos)} disabled={!values[pos] || !files[pos]}>Add</Button>
+            {tileByPos[pos] && (
+              <div className="flex items-center gap-2">
+                <img src={tileByPos[pos]!.image || "/placeholder.svg"} alt={tileByPos[pos]!.category} className="w-16 h-16 rounded object-cover" />
+                <span className="text-sm">{tileByPos[pos]!.category}</span>
+                <Button variant="destructive" size="sm" onClick={() => delMutation.mutate(pos)}>Remove</Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function ColorOptionsEditor() {
+    return (
+      <div className="space-y-3">
+        {colorItems.map((ci, idx) => (
+          <div key={`color-${idx}`} className="space-y-2">
+            <button
+              type="button"
+              className="relative w-16 h-16 rounded-md overflow-hidden border bg-card flex items-center justify-center"
+              onClick={() => {
+                const el = document.getElementById(`color-file-${idx}`) as HTMLInputElement | null;
+                el?.click();
+              }}
+            >
+              {ci.file || ci.imageUrl ? (
+                <>
+                  <img src={ci.file ? URL.createObjectURL(ci.file) : (ci.imageUrl || "/placeholder.svg")} alt="color" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-background/70 rounded-md p-1"
+                    onClick={(e) => { e.stopPropagation(); setColorItems((items) => items.map((it, i) => i === idx ? { ...it, file: null, imageUrl: undefined } : it)); }}
+                    aria-label="Remove"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
+              ) : (
+                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+              )}
+            </button>
+            <input id={`color-file-${idx}`} type="file" accept="image/*" className="hidden" onChange={(e) => {
+              const f = e.target.files?.[0] || null;
+              setColorItems((items) => items.map((it, i) => i === idx ? { ...it, file: f, imageUrl: undefined } : it));
+            }} />
+            <Input
+              placeholder="Target URL"
+              value={ci.url}
+              onChange={(e) => setColorItems((items) => items.map((it, i) => i === idx ? { ...it, url: e.target.value } : it))}
+            />
+            <div>
+              <Button variant="destructive" size="sm" onClick={() => setColorItems((items) => items.filter((_, i) => i !== idx))}>Remove</Button>
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setColorItems((items) => [...items, { file: null, url: "" }])}>Add Color</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container px-4 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -351,29 +499,67 @@ const Admin = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <div className="bg-card rounded-lg p-6 space-y-4">
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-lg p-4 space-y-4">
           <h2 className="font-serif text-2xl font-bold">Add Product</h2>
           <div>
             <Label>Name</Label>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
-          <div>
-            <Label>Brand</Label>
-            <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+          
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <Label>Price</Label>
+              <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            </div>
+            <div>
+              <Label>Discount (%)</Label>
+              <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
+            </div>
+            <div>
+              <Label>Cutoff</Label>
+              <Input type="number" value={form.originalPrice} onChange={(e) => setForm({ ...form, originalPrice: e.target.value })} />
+            </div>
+            <div>
+              <Label>Save Amount</Label>
+              <Input type="number" value={form.saveAmount} onChange={(e) => setForm({ ...form, saveAmount: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {form.originalPrice && (
+              <span className="text-muted-foreground line-through">₹{Number(form.originalPrice).toLocaleString()}</span>
+            )}
+            {form.saveAmount && (
+              <Badge variant="secondary">Save ₹{Number(form.saveAmount).toLocaleString()}</Badge>
+            )}
           </div>
           <div>
-            <Label>Price</Label>
-            <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-          </div>
-          <div>
-            <Label>Discount (%)</Label>
-            <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
-          </div>
-          <div>
-            <Label>Thumbnail</Label>
-            <div className="relative">
-              <Input value={form.images} onChange={(e) => setForm({ ...form, images: e.target.value })} />
+            <Label>Main Image</Label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="relative w-16 h-16 rounded-md overflow-hidden border bg-card flex items-center justify-center"
+                onClick={() => {
+                  const el = document.getElementById("thumb-file") as HTMLInputElement | null;
+                  el?.click();
+                }}
+              >
+                {thumbnailFile ? (
+                  <>
+                    <img src={URL.createObjectURL(thumbnailFile)} alt="main" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 bg-background/70 rounded-md p-1"
+                      onClick={(e) => { e.stopPropagation(); setThumbnailFile(null); }}
+                      aria-label="Remove"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
+                ) : (
+                  <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                )}
+              </button>
               <input
                 id="thumb-file"
                 type="file"
@@ -384,18 +570,6 @@ const Admin = () => {
                   setThumbnailFile(f);
                 }}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1"
-                onClick={() => {
-                  const el = document.getElementById("thumb-file") as HTMLInputElement | null;
-                  el?.click();
-                }}
-              >
-                <FileUp className="h-4 w-4" />
-              </Button>
             </div>
           </div>
           <div>
@@ -413,7 +587,17 @@ const Admin = () => {
                   }}
                 >
                   {files[i] ? (
-                    <img src={URL.createObjectURL(files[i]!)} alt="img" className="w-full h-full object-cover" />
+                    <>
+                      <img src={URL.createObjectURL(files[i]!)} alt="img" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute top-1 right-1 bg-background/70 rounded-md p-1"
+                        onClick={(e) => { e.stopPropagation(); const next = [...files]; next[i] = null; setFiles(next); }}
+                        aria-label="Remove"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
                   ) : (
                     <ImagePlus className="h-6 w-6 text-muted-foreground" />
                   )}
@@ -435,6 +619,10 @@ const Admin = () => {
               />
             </div>
           </div>
+          <div className="space-y-3">
+            <Label>Color</Label>
+            <ColorOptionsEditor />
+          </div>
           <div>
             <Label>Stock</Label>
             <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
@@ -444,26 +632,26 @@ const Admin = () => {
             <div className="space-y-2">
               <Select value={form.category} onValueChange={(v) => {
                 setForm({ ...form, category: v });
-                if (v.toLowerCase() !== "lenin") setSelectedLeninSub("");
+                setSelectedSub("");
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {((categoriesData || []).filter((c) => !(manageSubcats || []).includes(c))).map((c) => (
+                  {topCategories.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {form.category.toLowerCase() === "lenin" && (
+              {form.category && formSubcats.length > 0 && (
                 <div>
-                  <Label>Lenin Subcategory</Label>
-                  <Select value={selectedLeninSub} onValueChange={setSelectedLeninSub}>
+                  <Label>Subcategory</Label>
+                  <Select value={selectedSub} onValueChange={setSelectedSub}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select subcategory" />
                     </SelectTrigger>
                     <SelectContent>
-                      {manageSubcats.map((s) => (
+                      {formSubcats.map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
                     </SelectContent>
@@ -495,21 +683,43 @@ const Admin = () => {
               const firstImage = thumbUrl || (thumbInputUrl ? thumbInputUrl : undefined);
               const urls = [] as string[];
               const imagesArray = firstImage ? [firstImage, ...uploaded, ...urls] : [...uploaded, ...urls];
+              // prepare colorLinks from editor state
+              const colorLinks = colorItems
+                .map((ci) => ({ image: ci.imageUrl || "", file: ci.file, url: ci.url }))
+                .filter((ci) => ci.file || ci.imageUrl);
+              const filesToUpload = colorLinks.filter((ci) => ci.file).map((ci) => ci.file!)
+              let uploadedColorUrls: string[] = [];
+              if (filesToUpload.length) {
+                const cfd = new FormData();
+                filesToUpload.forEach((f) => cfd.append("files", f));
+                const cres = await authFetch("/api/upload", { method: "POST", body: cfd });
+                const cdata = await cres.json();
+                uploadedColorUrls = cdata.urls || [];
+              }
+              let colorUrlIndex = 0;
+              const finalColorLinks = colorLinks.map((ci) => ({
+                image: ci.file ? uploadedColorUrls[colorUrlIndex++] : (ci.imageUrl || ""),
+                url: ci.url,
+              })).filter((x) => x.image && x.url);
+
               await createMutation.mutateAsync({
                 name: form.name,
-                brand: form.brand,
                 price: Number(form.price),
                 images: imagesArray,
                 stock: Number(form.stock || 0),
-                category: (form.category.toLowerCase() === "lenin" && selectedLeninSub) ? selectedLeninSub : form.category,
+                category: selectedSub || form.category,
+                originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
+                saveAmount: form.saveAmount ? Number(form.saveAmount) : undefined,
                 discount: form.discount ? Number(form.discount) : undefined,
+                colorLinks: finalColorLinks,
               });
               setForm(initialForm);
-              setSelectedLeninSub("");
+              setSelectedSub("");
               setThumbnailFile(null);
               setFiles([null, null, null, null, null]);
               setSelectedPreviewIndex(0);
               setFilePickerIndex(null);
+              setColorItems([]);
               const thumbEl = document.getElementById("thumb-file") as HTMLInputElement | null;
               if (thumbEl) thumbEl.value = "";
               const multiEl = document.getElementById("multi-file-picker") as HTMLInputElement | null;
@@ -520,7 +730,7 @@ const Admin = () => {
           </Button>
         </div>
 
-        <div className="bg-card rounded-lg p-6 space-y-4">
+        <div className="bg-card rounded-lg p-4 space-y-4">
           <h2 className="font-serif text-2xl font-bold">Product Preview</h2>
           {form.name && (
             <div className="space-y-3">
@@ -532,7 +742,7 @@ const Admin = () => {
                 const current = sources[selectedPreviewIndex] || sources[0] || "/placeholder.svg";
                 return (
                   <>
-                    <div className="relative overflow-hidden rounded-lg bg-card aspect-square mb-4">
+                    <div className="relative overflow-hidden rounded-lg bg-card aspect-[3/4] max-w-[400px] mb-3">
                       <img src={current} alt={form.name} className="h-full w-full object-cover" />
                       {form.discount && (
                         <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground">
@@ -541,7 +751,7 @@ const Admin = () => {
                       )}
                     </div>
                     {sources.length > 1 && (
-                      <div className="flex gap-2 overflow-x-auto pb-2">
+                      <div className="flex gap-2 overflow-x-auto pb-1">
                         {sources.map((src, index) => (
                           <button
                             key={index}
@@ -628,7 +838,7 @@ const Admin = () => {
             </div>
           )}
           <div className="h-[600px] overflow-y-auto rounded-md border w-full">
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible className="w-full" value={openItem} onValueChange={setOpenItem}>
               {topCategories.map((c) => (
                 <AccordionItem key={c} value={c}>
                   <AccordionTrigger className="px-3 pr-16">
@@ -676,6 +886,11 @@ const Admin = () => {
                             e.preventDefault();
                             e.stopPropagation();
                             setAddingSubFor(c);
+                            setOpenItem(c);
+                            setTimeout(() => {
+                              const el = document.getElementById(`new-sub-input-${c}`) as HTMLInputElement | null;
+                              el?.focus();
+                            }, 0);
                           }}
                           aria-label="Add subcategory"
                         >
@@ -699,7 +914,7 @@ const Admin = () => {
                   <AccordionContent className="px-3">
                     {addingSubFor === c && (
                       <div className="flex gap-2 mb-2">
-                        <Input placeholder="New subcategory" value={newSubName} onChange={(e) => setNewSubName(e.target.value)} className="h-8" />
+                        <Input id={`new-sub-input-${c}`} placeholder="New subcategory" value={newSubName} onChange={(e) => setNewSubName(e.target.value)} className="h-8" />
                         <Button
                           size="sm"
                           variant="secondary"
@@ -762,10 +977,14 @@ const Admin = () => {
           </div>
         </div>
         
-        <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
-          <h2 className="font-serif text-2xl font-bold">Best Sellers</h2>
-          <BestSellersManager products={products} />
-        </div>
+      <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
+        <h2 className="font-serif text-2xl font-bold">Best Sellers</h2>
+        <BestSellersManager products={products} />
+      </div>
+      <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
+        <h2 className="font-serif text-2xl font-bold">Category Tiles</h2>
+        <CategoryTilesManager categories={topCategories} />
+      </div>
       </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>

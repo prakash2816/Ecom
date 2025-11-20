@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Product } from "@/types/product";
 import { addToCart } from "@/lib/cart";
+import { removeFromWishlist } from "@/lib/wishlist";
 import { Heart } from "lucide-react";
 
 const Wishlist = () => {
@@ -13,6 +14,22 @@ const Wishlist = () => {
     } catch {
       setItems([]);
     }
+  }, []);
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const raw = localStorage.getItem("wishlist_items");
+        setItems(raw ? (JSON.parse(raw) as Product[]) : []);
+      } catch {
+        setItems([]);
+      }
+    };
+    window.addEventListener("wishlist:update", handler as EventListener);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("wishlist:update", handler as EventListener);
+      window.removeEventListener("storage", handler);
+    };
   }, []);
 
   if (!items.length) {
@@ -45,15 +62,7 @@ const Wishlist = () => {
               <Button variant="outline" onClick={() => { addToCart(p, 1); }}>
                 Add to Cart
               </Button>
-              <Button variant="destructive" onClick={() => {
-                try {
-                  const raw = localStorage.getItem("wishlist_items");
-                  const list = raw ? (JSON.parse(raw) as Product[]) : [];
-                  const next = list.filter((x) => x.id !== p.id);
-                  localStorage.setItem("wishlist_items", JSON.stringify(next));
-                  setItems(next);
-                } catch { void 0; }
-              }}>
+              <Button variant="destructive" onClick={() => { removeFromWishlist(p.id); }}>
                 Remove
               </Button>
             </div>

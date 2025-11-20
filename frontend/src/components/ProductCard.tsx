@@ -9,9 +9,10 @@ import { useState, useEffect } from "react";
 
 interface ProductCardProps {
   product: Product;
+  compact?: boolean;
 }
 
-const ProductCard = ({ product }: ProductCardProps) => {
+const ProductCard = ({ product, compact }: ProductCardProps) => {
   const [wish, setWish] = useState(false);
   useEffect(() => {
     setWish(isWishlisted(product.id));
@@ -19,9 +20,9 @@ const ProductCard = ({ product }: ProductCardProps) => {
   return (
     <div className="group relative">
       <Link to={`/product/${product.id}`}>
-        <div className="relative overflow-hidden rounded-lg bg-card aspect-square mb-4">
+        <div className={`relative overflow-hidden rounded-lg bg-card ${compact ? "aspect-[3/4]" : "aspect-square"} mb-3`}>
           <img
-            src={product.images?.[0] ?? "/placeholder.svg"}
+            src={(product.images?.[0] && !String(product.images?.[0]).startsWith("blob:")) ? product.images![0] : "/placeholder.svg"}
             alt={product.name}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
@@ -40,13 +41,13 @@ const ProductCard = ({ product }: ProductCardProps) => {
 
       <div className="space-y-2">
         <Link to={`/product/${product.id}`}>
-          <h3 className="font-serif text-lg font-medium hover:text-primary transition-colors">
+          <h3 className={`font-serif ${compact ? "text-base" : "text-lg"} font-medium hover:text-primary transition-colors`}>
             {product.name}
           </h3>
         </Link>
         
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold">₹{product.price.toLocaleString()}</span>
+          <span className={`${compact ? "text-base" : "text-lg"} font-semibold`}>₹{product.price.toLocaleString()}</span>
           {product.originalPrice && (
             <span className="text-sm text-muted-foreground line-through">
               ₹{product.originalPrice.toLocaleString()}
@@ -59,7 +60,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
             {[...Array(5)].map((_, i) => (
               <span
                 key={i}
-                className={`text-sm ${
+                className={`${compact ? "text-xs" : "text-sm"} ${
                   i < Math.floor(product.rating) ? "text-accent" : "text-muted"
                 }`}
               >
@@ -67,10 +68,10 @@ const ProductCard = ({ product }: ProductCardProps) => {
               </span>
             ))}
           </div>
-          <span className="text-sm text-muted-foreground">({product.reviews.length})</span>
+          <span className={`${compact ? "text-xs" : "text-sm"} text-muted-foreground`}>({product.reviews.length})</span>
         </div>
 
-        <Button className="w-full mt-2" variant="outline" size="sm" onClick={() => addToCart(product, 1)}>
+        <Button className="w-full mt-2" variant="outline" size={compact ? "sm" : "default"} onClick={() => addToCart(product, 1)}>
           <ShoppingCart className="h-4 w-4 mr-2" />
           Add to Cart
         </Button>
