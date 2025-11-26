@@ -10,6 +10,9 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import crypto from "crypto";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import registerProducts from "./routes/products.js";
+import registerCategories from "./routes/categories.js";
+import registerSubcategories from "./routes/subcategories.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -332,8 +335,8 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/api/products", async (req, res) => {
-  try {
+app.get("/api/products", async (req, res, next) => {
+  try { return next();
     if (db) {
       const items = await db.collection("products").find({}).sort({ createdAt: -1, _id: -1 }).toArray();
       const sanitized = items.map((p) => ({
@@ -359,8 +362,8 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-app.get("/api/products/:id", async (req, res) => {
-  try {
+app.get("/api/products/:id", async (req, res, next) => {
+  try { return next();
     if (db) {
       const item = await db.collection("products").findOne({ id: req.params.id });
       if (!item) {
@@ -393,8 +396,8 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
-app.post("/api/products", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.post("/api/products", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const payload = req.body || {};
     if (!payload.name || !payload.price) return res.status(400).json({ error: "Missing fields" });
   const doc = {
@@ -437,8 +440,8 @@ app.post("/api/products", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/products/:id", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.put("/api/products/:id", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     if (!db) {
       const id = req.params.id;
       const idx = products.findIndex(p => p.id === id);
@@ -457,8 +460,8 @@ app.put("/api/products/:id", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.delete("/api/products/:id", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.delete("/api/products/:id", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     if (!db) {
       const id = req.params.id;
       const before = products.length;
@@ -491,6 +494,39 @@ process.on("uncaughtException", (err) => { try { console.error("uncaughtExceptio
 process.on("unhandledRejection", (err) => { try { console.error("unhandledRejection", err); } catch {} });
 initDb().finally(() => {
   try {
+    registerProducts({
+      app,
+      getDb: () => db,
+      authMiddleware,
+      adminOnly,
+      getProducts: () => products,
+      setProducts: (arr) => { products = arr; },
+      saveProducts: saveProductsToFile,
+      getCategories: () => categories,
+      setCategories: (arr) => { categories = arr; },
+      saveCategories: saveCategoriesToFile,
+      getSubcategories: () => subcategories,
+      saveSubcategories: saveSubcategoriesToFile,
+    });
+    registerCategories({
+      app,
+      getDb: () => db,
+      authMiddleware,
+      adminOnly,
+      getCategories: () => categories,
+      setCategories: (arr) => { categories = arr; },
+      getSubcategories: () => subcategories,
+      saveCategories: saveCategoriesToFile,
+      saveSubcategories: saveSubcategoriesToFile,
+    });
+    registerSubcategories({
+      app,
+      getDb: () => db,
+      authMiddleware,
+      adminOnly,
+      getSubcategories: () => subcategories,
+      saveSubcategories: saveSubcategoriesToFile,
+    });
     app.listen(port, () => {
       console.log(`[backend] listening on http://localhost:${port}`);
     });
@@ -715,8 +751,8 @@ function saveUsersToFile() {
   } catch {}
 }
 // Categories API
-app.get("/api/categories", async (req, res) => {
-  try {
+app.get("/api/categories", async (req, res, next) => {
+  try { return next();
     if (db) {
       const cats = await db.collection("categories").find({}).toArray();
       const catNames = cats.map(c => c.name);
@@ -735,8 +771,8 @@ app.get("/api/categories", async (req, res) => {
   }
 });
 
-app.post("/api/categories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.post("/api/categories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ error: "Name required" });
     if (db) {
@@ -755,8 +791,8 @@ app.post("/api/categories", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/categories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.put("/api/categories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const { oldName, newName } = req.body || {};
     if (!oldName || !newName) return res.status(400).json({ error: "oldName and newName required" });
     if (db) {
@@ -884,8 +920,8 @@ app.delete("/api/bestsellers/:id", authMiddleware, adminOnly, async (req, res) =
 });
 
 // Subcategories API
-app.get("/api/subcategories", async (req, res) => {
-  try {
+app.get("/api/subcategories", async (req, res, next) => {
+  try { return next();
     const category = (req.query.category || "").toString();
     if (!category) return res.status(400).json({ error: "category required" });
     if (db) {
@@ -899,8 +935,8 @@ app.get("/api/subcategories", async (req, res) => {
   }
 });
 
-app.post("/api/subcategories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.post("/api/subcategories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const { category, name } = req.body || {};
     if (!category || !name) return res.status(400).json({ error: "category and name required" });
     if (db) {
@@ -920,8 +956,8 @@ app.post("/api/subcategories", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/subcategories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.put("/api/subcategories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const { category, oldName, newName } = req.body || {};
     if (!category || !oldName || !newName) return res.status(400).json({ error: "category, oldName, newName required" });
     if (db) {
@@ -940,8 +976,8 @@ app.put("/api/subcategories", authMiddleware, adminOnly, async (req, res) => {
     res.status(500).json({ error: "Failed" });
   }
 });
-app.delete("/api/categories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.delete("/api/categories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const body = req.body || {};
     const queryName = (req.query?.name || "").toString();
     const name = body.name || queryName;
@@ -960,8 +996,8 @@ app.delete("/api/categories", authMiddleware, adminOnly, async (req, res) => {
     res.status(500).json({ error: "Failed" });
   }
 });
-app.delete("/api/subcategories", authMiddleware, adminOnly, async (req, res) => {
-  try {
+app.delete("/api/subcategories", authMiddleware, adminOnly, async (req, res, next) => {
+  try { return next();
     const body = req.body || {};
     const qCategory = (req.query?.category || "").toString();
     const qName = (req.query?.name || "").toString();
@@ -1264,7 +1300,22 @@ app.get("/api/category-tiles", async (req, res) => {
     const entries = Object.entries(categoryTiles)
       .map(([pos, obj]) => ({ position: Number(pos), category: obj?.category || "", image: obj?.image || "" }))
       .sort((a, b) => a.position - b.position)
-      .slice(0, 6);
+      .slice(0, 6)
+      .map((e) => {
+        try {
+          if (e.image && e.image.startsWith("/uploads/")) {
+            const lp = resolveLocal(e.image);
+            let exists = false;
+            try { exists = Boolean(lp && fs.existsSync(lp)); } catch {}
+            if (!exists) {
+              const full = path.basename(e.image || "");
+              const stripped = full.includes("_") ? full.split("_").slice(1).join("_") : full;
+              e.image = `/images/${stripped}`;
+            }
+          }
+        } catch {}
+        return e;
+      });
     res.json(entries);
   } catch (e) {
     res.status(500).json({ error: "Failed" });
@@ -1310,6 +1361,65 @@ app.delete("/api/category-tiles", authMiddleware, adminOnly, async (req, res) =>
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "Failed" });
+  }
+});
+app.post("/api/admin/category-tiles/migrate", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    if (!hasS3 || !s3) return res.status(400).json({ error: "S3 not configured" });
+    let updated = 0;
+    let errors = [];
+    function findLocalForImage(img) {
+      try {
+        const full = path.basename(img || "");
+        const parts = full.split("_");
+        const stripped = parts.length > 1 ? parts.slice(1).join("_") : full;
+        const candidates = [
+          path.join(uploadDir, full),
+          path.join(path.resolve(__dirname, ".."), "uploads", full),
+          path.join(path.resolve(__dirname, ".."), "frontend", "public", "uploads", full),
+          path.join(path.resolve(__dirname, ".."), "frontend", "public", "images", full),
+          path.join(path.resolve(__dirname, ".."), "frontend", "public", "images", stripped),
+        ];
+        for (const c of candidates) { try { if (fs.existsSync(c)) return c; } catch {} }
+      } catch {}
+      return null;
+    }
+    if (db) {
+      const docs = await db.collection("category_tiles").find({}).toArray();
+      for (const d of docs) {
+        try {
+          const lp = findLocalForImage(d.image) || resolveLocal(d.image);
+          if (lp) {
+            const url = await uploadLocalPath(lp, path.basename(d.image));
+            if (url) {
+              await db.collection("category_tiles").updateOne({ _id: d._id }, { $set: { image: url } });
+              updated++;
+            }
+          }
+        } catch (e) {
+          errors.push({ category: d.category, image: d.image, error: String(e?.message || e) });
+        }
+      }
+    } else {
+      for (const [pos, obj] of Object.entries(categoryTiles)) {
+        try {
+          const lp = findLocalForImage(obj?.image || "") || resolveLocal(obj?.image || "");
+          if (lp) {
+            const url = await uploadLocalPath(lp, path.basename(obj.image));
+            if (url) {
+              categoryTiles[String(pos)] = { ...(obj || {}), image: url };
+              updated++;
+            }
+          }
+        } catch (e) {
+          errors.push({ position: pos, category: obj?.category, image: obj?.image, error: String(e?.message || e) });
+        }
+      }
+      saveCategoryTilesToFile();
+    }
+    res.json({ success: true, updated, errors });
+  } catch (e) {
+    res.status(500).json({ error: "Migration failed" });
   }
 });
 app.post("/api/products/:id/reviews", authMiddleware, async (req, res) => {
