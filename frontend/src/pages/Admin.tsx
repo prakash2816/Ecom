@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import ProductCard from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { authFetch, getRole, getToken } from "@/lib/auth";
+import { authFetch, getRole, getToken, apiBase } from "@/lib/auth";
  
 import type { Product } from "@/types/product";
 import { ImagePlus, FileUp } from "lucide-react";
@@ -84,7 +85,7 @@ const Admin = () => {
   const { data: categoriesData = [] } = useQuery<string[]>({
     queryKey: ["categories"],
     queryFn: async () => {
-      const res = await fetch("/api/categories");
+      const res = await fetch(`${apiBase}/api/categories`);
       return res.json();
     },
   });
@@ -94,7 +95,7 @@ const Admin = () => {
       const cats = categoriesData || [];
       if (!cats.length) return {} as Record<string, string[]>;
       const entries = await Promise.all(cats.map(async (c) => {
-        const res = await fetch(`/api/subcategories?category=${encodeURIComponent(c)}`);
+        const res = await fetch(`${apiBase}/api/subcategories?category=${encodeURIComponent(c)}`);
         const arr = await res.json();
         return [c, arr] as const;
       }));
@@ -225,7 +226,7 @@ const Admin = () => {
     queryFn: async () => {
       const cat = form.category;
       if (!cat) return [];
-      const res = await fetch(`/api/subcategories?category=${encodeURIComponent(cat)}`);
+      const res = await fetch(`${apiBase}/api/subcategories?category=${encodeURIComponent(cat)}`);
       return res.json();
     },
     enabled: !!form.category,
@@ -233,8 +234,27 @@ const Admin = () => {
   const { data: banners = [] } = useQuery<string[]>({
     queryKey: ["banners"],
     queryFn: async () => {
-      const res = await fetch("/api/banners");
+      const res = await fetch(`${apiBase}/api/banners`);
       return res.json();
+    },
+  });
+  const { data: carousel = [] } = useQuery<string[]>({
+    queryKey: ["carousel"],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/carousel`);
+      return res.json();
+    },
+  });
+  const saveCarouselMutation = useMutation({
+    mutationFn: async (images: string[]) => {
+      const res = await authFetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images }) });
+      if (!res.ok) throw new Error("Save carousel failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["carousel"] });
+      qc.refetchQueries({ queryKey: ["carousel"] });
+      toast("Carousel updated");
     },
   });
   const addBannersMutation = useMutation({
@@ -280,21 +300,25 @@ const Admin = () => {
         return res.json();
       },
     });
-    const [selectedId, setSelectedId] = useState<string>("");
-    const addMutation = useMutation({
-      mutationFn: async (id: string) => {
+    const [slotIds, setSlotIds] = useState<string[]>(["", "", "", "", ""]);
+    useEffect(() => {
+      const ids = current.map((p) => p.id);
+      setSlotIds((["", "", "", "", ""]).map((_, i) => ids[i] || ""));
+    }, [current]);
+    const saveListMutation = useMutation({
+      mutationFn: async (ids: string[]) => {
         const res = await authFetch("/api/bestsellers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: [id] }),
+          body: JSON.stringify({ ids }),
         });
-        if (!res.ok) throw new Error("Add failed");
+        if (!res.ok) throw new Error("Save failed");
         return res.json();
       },
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ["bestsellers"] });
         qc.refetchQueries({ queryKey: ["bestsellers"] });
-        toast("Added to bestsellers");
+        toast("Bestsellers updated");
       },
     });
     const delMutation = useMutation({
@@ -310,29 +334,61 @@ const Admin = () => {
     });
     return (
       <div className="space-y-4">
-        <div className="flex gap-2 items-center">
-          <select
-            className="border rounded-md px-2 py-1 bg-background"
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-          >
-            <option value="">Select product</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <Button onClick={() => selectedId && addMutation.mutate(selectedId)}>Add</Button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {current.map((p) => (
-            <div key={p.id} className="rounded-lg overflow-hidden border">
-              <img src={p.images?.[0] ?? "/placeholder.svg"} alt={p.name} className="w-full h-40 object-cover" />
-              <div className="p-2 flex items-center justify-between">
-                <span className="text-sm font-medium truncate">{p.name}</span>
-                <Button variant="destructive" size="sm" onClick={() => delMutation.mutate(p.id)}>Remove</Button>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[0,1,2,3,4].map((idx) => {
+            const pid = slotIds[idx] || "";
+            const p = pid ? current.find((x) => x.id === pid) : undefined;
+            return (
+              <div key={`slot-${idx}`}>
+                <div className="flex gap-2 items-center mb-2">
+                  <select
+                    className="border rounded-md px-2 py-1 bg-background w-full"
+                    value={pid}
+                    onChange={(e) => setSlotIds((ids) => { const ni = [...ids]; ni[idx] = e.target.value; return ni; })}
+                  >
+                    <option value="">Select product</option>
+                    {products.map((pp) => (
+                      <option key={pp.id} value={pp.id}>{pp.name}</option>
+                    ))}
+                  </select>
+                  <Button
+                    onClick={() => {
+                      const arr = slotIds.map((x) => x).filter(Boolean);
+                      saveListMutation.mutate(arr);
+                    }}
+                    disabled={!slotIds[idx]}
+                  >Add</Button>
+                </div>
+                {p ? (
+                  <>
+                    <ProductCard product={p} compact />
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setSlotIds((ids) => { const ni = [...ids]; ni[idx] = ""; return ni; });
+                          const arr = slotIds.map((x, i) => (i === idx ? "" : x)).filter(Boolean);
+                          saveListMutation.mutate(arr);
+                        }}
+                      >Remove</Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="relative overflow-hidden rounded-lg bg-card aspect-[3/4] border-2 border-dashed flex items-center justify-center">
+                    <button
+                      type="button"
+                      className="h-12 w-12 rounded-full border bg-background flex items-center justify-center"
+                      onClick={() => slotIds[idx] && saveListMutation.mutate(slotIds.filter(Boolean))}
+                      disabled={!slotIds[idx]}
+                    >
+                      <Plus className="h-6 w-6" />
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -426,6 +482,34 @@ const Admin = () => {
             )}
           </div>
         ))}
+      </div>
+    );
+  }
+
+  function CarouselItemEditor({ index, currentUrl, onSave, onRemove }: { index: number; currentUrl?: string; onSave: (file: File | null) => void; onRemove: () => void }) {
+    const [file, setFile] = useState<File | null>(null);
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="relative w-24 h-16 rounded-md overflow-hidden border bg-card flex items-center justify-center"
+            onClick={() => (document.getElementById(`carousel-file-${index}`) as HTMLInputElement | null)?.click()}
+          >
+            {file ? (
+              <img src={URL.createObjectURL(file)} alt="carousel" className="w-full h-full object-cover" />
+            ) : currentUrl ? (
+              <img src={currentUrl} alt="carousel" className="w-full h-full object-cover" />
+            ) : (
+              <ImagePlus className="h-6 w-6 text-muted-foreground" />
+            )}
+          </button>
+          <input id={`carousel-file-${index}`} type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => onSave(file)} disabled={!file}>Save</Button>
+          <Button variant="destructive" onClick={onRemove} disabled={!currentUrl}>Remove</Button>
+        </div>
       </div>
     );
   }
@@ -778,6 +862,35 @@ const Admin = () => {
 
         
         <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
+          <h2 className="font-serif text-2xl font-bold">Carousel Images</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {[0,1,2,3,4].map((idx) => (
+              <CarouselItemEditor
+                key={idx}
+                index={idx}
+                currentUrl={carousel[idx] || ""}
+                onSave={async (file) => {
+                  if (!file) return;
+                  const fd = new FormData();
+                  fd.append("files", file);
+                  const res = await authFetch("/api/upload", { method: "POST", body: fd });
+                  const data = await res.json();
+                  const url = (data.urls || [])[0];
+                  const next = [...carousel];
+                  next[idx] = url;
+                  saveCarouselMutation.mutate(next);
+                }}
+                onRemove={() => {
+                  const next = [...carousel];
+                  next[idx] = "";
+                  saveCarouselMutation.mutate(next.filter(Boolean));
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
           <h2 className="font-serif text-2xl font-bold">Banner Container</h2>
           <div className="flex gap-2 items-center">
             <input
@@ -801,16 +914,23 @@ const Admin = () => {
             />
             <Button variant="secondary" onClick={() => (document.getElementById("banner-file") as HTMLInputElement | null)?.click()}>Upload Images</Button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {banners.map((u) => (
-              <div key={u} className="rounded-lg overflow-hidden border">
-                <img src={u} alt="banner" className="w-full h-40 object-cover" />
-                <div className="p-2 flex justify-end">
-                  <Button variant="destructive" size="sm" onClick={() => deleteBannerMutation.mutate(u)}>Delete</Button>
+          {banners.length > 0 && (
+            <div className="rounded-lg overflow-hidden border bg-card">
+              <img src={banners[0]} alt="Banner" className="w-full h-[260px] md:h-[320px] object-cover" />
+            </div>
+          )}
+          {banners.length > 1 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {banners.slice(1).map((u) => (
+                <div key={u} className="rounded-lg overflow-hidden border relative">
+                  <img src={u} alt="banner" className="w-full h-24 object-cover" />
+                  <div className="absolute bottom-2 right-2">
+                    <Button variant="destructive" size="sm" onClick={() => deleteBannerMutation.mutate(u)}>Delete</Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="md:col-span-2 bg-card rounded-lg p-6 space-y-4">
           <div className="flex items-center justify-between">

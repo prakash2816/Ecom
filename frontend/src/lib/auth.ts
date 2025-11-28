@@ -54,11 +54,21 @@ export async function login(payload: { email: string; password: string }) {
   return data;
 }
 
+export const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+
+function resolveUrl(input: RequestInfo | URL): RequestInfo | URL {
+  if (typeof input === "string") {
+    if (input.startsWith("/")) return `${apiBase}${input}`;
+    return input;
+  }
+  return input;
+}
+
 export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(init.headers || {});
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  return fetch(resolveUrl(input), { ...init, headers });
 }
 
 import { syncCartFromServer } from "@/lib/cart";

@@ -34,6 +34,10 @@
     {
       "productId": "e939f54a-0953-4450-aaef-cdfa4043615b",
       "quantity": 1
+    },
+    {
+      "productId": "1",
+      "quantity": 3
     }
   ],
   "dev@ecom.test": [

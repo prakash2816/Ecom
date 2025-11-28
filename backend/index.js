@@ -22,6 +22,7 @@ import registerOrders from "./routes/orders.js";
 import registerAdminOrders from "./routes/adminOrders.js";
 import registerWishlist from "./routes/wishlist.js";
 import registerCategoryTiles from "./routes/categoryTiles.js";
+import registerCarousel from "./routes/carousel.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,8 @@ const categoryTilesPath = path.join(__dirname, "data", "category_tiles.json");
 let categoryTiles = {};
 const usersPath = path.join(__dirname, "data", "users.json");
 let fileUsers = [];
+const carouselPath = path.join(__dirname, "data", "carousel.json");
+let carousel = [];
 
 function loadData() {
   try {
@@ -134,6 +137,14 @@ function loadData() {
     fileUsers = [];
     try { fs.mkdirSync(path.dirname(usersPath), { recursive: true }); } catch {}
     try { fs.writeFileSync(usersPath, JSON.stringify(fileUsers, null, 2)); } catch {}
+  }
+  try {
+    const raw = fs.readFileSync(carouselPath, "utf-8");
+    carousel = JSON.parse(raw);
+  } catch (e) {
+    carousel = [];
+    try { fs.mkdirSync(path.dirname(carouselPath), { recursive: true }); } catch {}
+    try { fs.writeFileSync(carouselPath, JSON.stringify(carousel, null, 2)); } catch {}
   }
 }
 
@@ -321,6 +332,15 @@ initDb().finally(() => {
       setBanners: (arr) => { banners = arr; },
       saveBanners: saveBannersToFile,
     });
+    registerCarousel({
+      app,
+      getDb: () => db,
+      authMiddleware,
+      adminOnly,
+      getCarousel: () => carousel,
+      setCarousel: (arr) => { carousel = arr; },
+      saveCarousel: saveCarouselToFile,
+    });
     registerBestsellers({
       app,
       getDb: () => db,
@@ -492,5 +512,10 @@ function saveCategoryTilesToFile() {
 function saveUsersToFile() {
   try {
     fs.writeFileSync(usersPath, JSON.stringify(fileUsers, null, 2));
+  } catch {}
+}
+function saveCarouselToFile() {
+  try {
+    fs.writeFileSync(carouselPath, JSON.stringify(carousel, null, 2));
   } catch {}
 }

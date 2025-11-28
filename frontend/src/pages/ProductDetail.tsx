@@ -35,7 +35,7 @@ const ProductDetail = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     setWish(product ? isWishlisted(product.id) : false);
-  }, [id]);
+  }, [id, product]);
 
   useEffect(() => {
     (async () => {

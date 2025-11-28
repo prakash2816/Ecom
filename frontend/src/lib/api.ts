@@ -1,5 +1,8 @@
+import { apiBase } from "./auth";
+
 export async function fetchJSON(url: string) {
-  const res = await fetch(url);
+  const target = url.startsWith("/") ? `${apiBase}${url}` : url;
+  const res = await fetch(target);
   if (!res.ok) throw new Error(String(res.status));
   return res.json();
 }

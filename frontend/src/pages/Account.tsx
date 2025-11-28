@@ -32,7 +32,7 @@ const Account = () => {
 
   useEffect(() => {
     if (!getToken()) navigate("/login");
-  }, []);
+  }, [navigate]);
 
   if (role === "admin") {
     return (

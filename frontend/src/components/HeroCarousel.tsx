@@ -1,36 +1,44 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiBase } from "@/lib/auth";
 import hero1 from "@/assets/hero-saree-1.jpg";
 import hero2 from "@/assets/hero-saree-2.jpg";
 import hero3 from "@/assets/hero-saree-3.jpg";
 
-const slides = [
-  {
-    image: hero1,
-    title: "Timeless Elegance",
-    subtitle: "Discover our exquisite collection of handcrafted silk sarees",
-  },
-  {
-    image: hero2,
-    title: "Premium Craftsmanship",
-    subtitle: "Intricate designs with traditional artistry",
-  },
-  {
-    image: hero3,
-    title: "Luxury Redefined",
-    subtitle: "Experience the finest sarees for every occasion",
-  },
+const defaultSlides = [
+  { image: hero1, title: "Timeless Elegance", subtitle: "Discover our exquisite collection of handcrafted silk sarees" },
+  { image: hero2, title: "Premium Craftsmanship", subtitle: "Intricate designs with traditional artistry" },
+  { image: hero3, title: "Luxury Redefined", subtitle: "Experience the finest sarees for every occasion" },
 ];
 
 const HeroCarousel = () => {
   const [current, setCurrent] = useState(0);
+  const [slides, setSlides] = useState(defaultSlides);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
+  }, [slides.length]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/carousel`);
+        let images: string[] = [];
+        if (res.ok) images = await res.json();
+        if (!Array.isArray(images) || images.length === 0) {
+          const b = await fetch(`${apiBase}/api/banners`);
+          if (b.ok) images = await b.json();
+        }
+        if (Array.isArray(images) && images.length) {
+          const next = images.slice(0, 5).map((img, i) => ({ image: img, title: defaultSlides[i % defaultSlides.length].title, subtitle: defaultSlides[i % defaultSlides.length].subtitle }));
+          setSlides(next);
+        }
+      } catch (e) { void e; }
+    })();
   }, []);
 
   const next = () => setCurrent((prev) => (prev + 1) % slides.length);

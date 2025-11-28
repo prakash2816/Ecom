@@ -9,6 +9,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { getRole, getToken, clearAuth } from "@/lib/auth";
+import { toast } from "@/components/ui/sonner";
 import { clearCart, getCount, syncCartFromServer } from "@/lib/cart";
 import { clearWishlist, syncWishlistFromServer } from "@/lib/wishlist";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -43,15 +44,39 @@ const Layout = ({ children }: LayoutProps) => {
         if (r === "admin") {
           const res = await fetch("/api/admin/orders", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
           if (res.ok) {
-            const list = await res.json();
-            setAdminOrdersCount(Array.isArray(list) ? list.length : 0);
+            const list: Array<{ createdAt?: number }> = await res.json();
+            const lastSeen = Number(localStorage.getItem("admin_last_seen_orders_ts") || 0);
+            const unseen = Array.isArray(list) ? list.filter((o) => Number(o.createdAt || 0) > lastSeen).length : 0;
+            const onOrdersPage = location.pathname.startsWith("/admin/orders");
+            if (onOrdersPage) {
+              localStorage.setItem("admin_last_seen_orders_ts", String(Date.now()));
+              setAdminOrdersCount(0);
+            } else {
+              setAdminOrdersCount(unseen);
+            }
           }
         } else {
           setAdminOrdersCount(0);
         }
       } catch { setAdminOrdersCount(0); }
     })();
-  }, [location.pathname]);
+    const interval = setInterval(async () => {
+      try {
+        const r = getRole();
+        const token2 = getToken();
+        if (r !== "admin") return;
+        const res = await fetch("/api/admin/orders", { headers: token2 ? { Authorization: `Bearer ${token2}` } : undefined });
+        if (!res.ok) return;
+        const list: Array<{ createdAt?: number }> = await res.json();
+        const lastSeen = Number(localStorage.getItem("admin_last_seen_orders_ts") || 0);
+        const unseen = Array.isArray(list) ? list.filter((o) => Number(o.createdAt || 0) > lastSeen).length : 0;
+        const prev = adminOrdersCount;
+        setAdminOrdersCount(unseen);
+        if (unseen > prev) toast(`${unseen} new order${unseen > 1 ? "s" : ""}`);
+      } catch (e) { void e; }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [location.pathname, adminOrdersCount]);
   useEffect(() => {
     const handler = () => {
       setRole(getRole());
@@ -60,7 +85,11 @@ const Layout = ({ children }: LayoutProps) => {
     };
     window.addEventListener("storage", handler);
     window.addEventListener("cart:update", handler as EventListener);
-    return () => window.removeEventListener("storage", handler);
+    window.addEventListener("orders:update", handler as EventListener);
+    return () => {
+      window.removeEventListener("storage", handler);
+      window.removeEventListener("orders:update", handler as EventListener);
+    };
   }, []);
   return (
     <div className="min-h-screen flex flex-col">
@@ -139,9 +168,11 @@ const Layout = ({ children }: LayoutProps) => {
                 <Link to="/admin/orders">
                   <Button variant="ghost" className="relative">
                     Orders
-                    <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] px-1 flex items-center justify-center">
-                      {adminOrdersCount}
-                    </span>
+                    {adminOrdersCount > 0 ? (
+                      <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] px-1 flex items-center justify-center">
+                        {adminOrdersCount}
+                      </span>
+                    ) : null}
                   </Button>
                 </Link>
               </>

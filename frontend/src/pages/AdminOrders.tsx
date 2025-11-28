@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,12 @@ type Order = { id: string; user: string; items: OrderItem[]; status: string; cre
 const AdminOrders = () => {
   const qc = useQueryClient();
   const role = getRole();
+  useEffect(() => {
+    try {
+      localStorage.setItem("admin_last_seen_orders_ts", String(Date.now()));
+      window.dispatchEvent(new Event("orders:update"));
+    } catch (e) { void e; }
+  }, []);
   const { data: orders = [], error, isLoading } = useQuery<Order[]>({
     queryKey: ["admin-orders"],
     queryFn: async () => {
