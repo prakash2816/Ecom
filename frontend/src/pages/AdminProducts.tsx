@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Product } from "@/types/product";
-import { authFetch, getRole } from "@/lib/auth";
+import { authFetch, getRole, apiBase } from "@/lib/auth";
 import { Plus, Trash2 } from "lucide-react";
 
 const AdminProducts = () => {
@@ -88,7 +88,7 @@ const AdminProducts = () => {
   const { data: categoriesData = [] } = useQuery<string[]>({
     queryKey: ["categories"],
     queryFn: async () => {
-      const res = await fetch("/api/categories");
+      const res = await fetch(`${apiBase}/api/categories`);
       return res.json();
     },
   });
@@ -105,7 +105,7 @@ const AdminProducts = () => {
   const { data: manageSubcats = [] } = useQuery<string[]>({
     queryKey: ["subcategories", manageCategory],
     queryFn: async () => {
-      const res = await fetch(`/api/subcategories?category=${encodeURIComponent(manageCategory)}`);
+      const res = await fetch(`${apiBase}/api/subcategories?category=${encodeURIComponent(manageCategory)}`);
       return res.json();
     },
   });

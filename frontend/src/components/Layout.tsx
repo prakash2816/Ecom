@@ -42,7 +42,7 @@ const Layout = ({ children }: LayoutProps) => {
       try {
         const r = getRole();
         if (r === "admin") {
-          const res = await fetch("/api/admin/orders", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+          const res = await authFetch("/api/admin/orders");
           if (res.ok) {
             const list: Array<{ createdAt?: number }> = await res.json();
             const lastSeen = Number(localStorage.getItem("admin_last_seen_orders_ts") || 0);
@@ -65,7 +65,7 @@ const Layout = ({ children }: LayoutProps) => {
         const r = getRole();
         const token2 = getToken();
         if (r !== "admin") return;
-        const res = await fetch("/api/admin/orders", { headers: token2 ? { Authorization: `Bearer ${token2}` } : undefined });
+        const res = await authFetch("/api/admin/orders");
         if (!res.ok) return;
         const list: Array<{ createdAt?: number }> = await res.json();
         const lastSeen = Number(localStorage.getItem("admin_last_seen_orders_ts") || 0);

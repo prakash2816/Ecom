@@ -17,7 +17,7 @@ export function clearAuth() {
 }
 
 export async function register(payload: { email: string; password: string; name?: string; invite?: string }) {
-  const res = await fetch("/api/auth/register", {
+  const res = await fetch(resolveUrl("/api/auth/register"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -36,7 +36,7 @@ export async function register(payload: { email: string; password: string; name?
 }
 
 export async function login(payload: { email: string; password: string }) {
-  const res = await fetch("/api/auth/login", {
+  const res = await fetch(resolveUrl("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
