@@ -30,7 +30,7 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express();
 app.use(cors({
   origin: [
-    "https://ecom.speshwayhrms.com",
+    "http://3.109.207.107",
     "http://localhost:8080",
     "http://localhost:5173"
   ],
@@ -412,7 +412,7 @@ initDb().finally(() => {
       resolveLocal,
       uploadLocalPath,
     });
-    app.listen(port, () => {
+    app.listen(port, "0.0.0.0", () => {
       console.log(`[backend] listening on http://localhost:${port}`);
     });
   } catch (e) {
